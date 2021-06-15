@@ -1,0 +1,15 @@
+
+(define (words str)
+  (let loop ((s (string->list str))
+	     (temp '())
+	     (acc '()))
+    (cond
+     ((null? s) (if (null? temp)
+		    (reverse acc)
+		    (reverse (cons (list->string (reverse temp)) acc))))
+     ((and (eq? (car s) #\space)
+	   (null? temp))
+      (loop (cdr s) temp acc))
+     ((eq? (car s) #\space)
+      (loop (cdr s) '() (cons (list->string (reverse temp)) acc)))
+     (else (loop (cdr s) (cons (car s) temp) acc)))))

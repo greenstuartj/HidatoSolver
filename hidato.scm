@@ -1,0 +1,166 @@
+
+(load "file.scm")
+(load "list.scm")
+(load "string.scm")
+(load "function.scm")
+(load "dict.scm")
+
+(define (coord< c1 c2)
+  (cond
+   ((null? c1) #f)
+   ((< (car c1) (car c2)) #t)
+   ((> (car c1) (car c2)) #f)
+   (else (coord< (cdr c1) (cdr c2)))))
+
+(define (string->cell c)
+  (cond
+   ((equal? c ".") #f)
+   (else (string->number c))))
+
+(define (get-cells filename)
+  (-> (parse-file filename)
+      ((& map) words)
+      ((& map)
+       ((& map) string->number))
+      (lambda (pf)
+	(let loop ((i (iota (+ 1 (length pf))))
+		   (lines pf)
+		   (acc '()))
+	  (cond
+	   ((null? lines)
+	    (if (null? acc)
+		'()
+		(reverse
+		 (cons (map (lambda (n) (list #f (car i) n)) (iota (length (car acc))))
+		       acc))))
+	   (else (loop (cdr i)
+		       (cdr lines)
+		       (cons (zip-with (lambda (n j) (list n (car i) j))
+				       (append (car lines) (list #f))
+				       (iota (+ 1 (length (car lines)))))
+			     acc))))))
+      ((& apply) append)))
+
+(define (get-known-cells cells)
+  (-> cells
+      ((& filter) (lambda (c) (and (car c) (not (zero? (car c))))))
+      ((& sort) (lambda (a b) (< (car a) (car b))))
+      (lambda (kc)
+	(let loop ((l kc)
+		   (acc '()))
+	  (cond
+	   ((null? l) (reverse acc))
+	   ((null? (cdr l)) (reverse acc))
+	   (else (loop (cdr l) (cons (list (car l) (cadr l)) acc))))))
+      ((& sort) (lambda (p1 p2) (< (- (car (cadr p1)) (car (car p1)))
+				   (- (car (cadr p2)) (car (car p2))))))
+      ((& filter) (lambda (p) (not (= 1 (- (car (cadr p)) (car (car p)))))))))
+
+(define (get-invalid cells)
+  (-> cells
+      ((& filter) (lambda (c) (or (not (car c)) (not (zero? (car c))))))
+      ((& map) cdr)
+      ((& (~ list->set)) coord<)))
+
+(define (get-moves from to invalid)
+  (let ((deltas '((1 1) (1 0) (1 -1) (0 1) (0 -1) (-1 1) (-1 0) (-1 -1)))
+	(f (lambda (c d)
+	     (list (+ 1 (car c)) (+ (cadr c) (car d)) (+ (caddr c) (cadr d)))))
+	(hyp (lambda (c)
+	       (sqrt (+ (expt (- (cadr to) (cadr c)) 2)
+			(expt (- (caddr to) (caddr c)) 2))))))
+    (-> deltas
+	((& map)
+	 (lambda (d) (f from d)))
+	((& filter)
+	 (lambda (d) (and (not (< (cadr d) 0))
+			  (not (< (caddr d) 0))
+			  (or (equal? d to)
+			      (not (set-member? (cdr d) invalid))))))
+	((& sort) (lambda (a b)
+		    (if (equal? a to)
+			#t
+			(< (hyp a) (hyp b))))))))
+
+(define (build-path from to invalid pairs)
+  (let* ((ninvalid (set-add (cdr from) invalid))
+	 (moves (get-moves from to ninvalid)))
+    (let loop ((mvs moves))
+      (cond
+       ((null? mvs) #f)
+       ((equal? (car mvs) to)
+	(if (null? pairs)
+	    (list from)
+	    (let ((new-invalid (set-add (cdr (car mvs)) ninvalid)))
+	      (let ((result (build-path (car (car pairs))
+					(cadr (car pairs))
+					new-invalid
+					(cdr pairs))))
+		(if (not result)
+		    #f
+		    (cons from result))))))
+       ((equal? (car (car mvs)) (car to)) #f)
+       (else (let ((result (build-path (car mvs) to ninvalid pairs)))
+	       (if (not result)
+		   (loop (cdr mvs))
+		   (cons from result))))))))
+
+(define (pad str width)
+  (let loop ((s str)
+	     (n (string-length str)))
+    (cond
+     ((>= n width) s)
+     (else (loop (string-append " " s) (+ n 1))))))
+
+(define (show-board cells largest file)
+  (let ((width (+ 1 (string-length (number->string largest)))))
+    (let ((board (map words (parse-file file))))
+      (let loop ((cs cells)
+		 (b board))
+	(if (null? b)
+	    #t
+	    (let iloop ((ln (car b))
+			(cs2 cs))
+	      (if (null? ln)
+		  (begin (newline)
+			 (loop cs2 (cdr b)))
+		  (cond
+		   ((equal? (car ln) ".")
+		    (begin (display (pad "." width))
+			   (iloop (cdr ln) cs2)))
+		   ((and (not (equal? (car ln) "0"))
+			 (not (equal? (car ln) (number->string (car (car cs2))))))
+		    (begin (display (pad (car ln) width))
+			   (iloop (cdr ln) cs2)))
+		   (else
+		    (begin
+		      (display (pad (number->string (car (car cs2))) width))
+		      (iloop (cdr ln) (cdr cs2))))))))))))
+
+(define (run file)
+  (let* ((cells (get-cells file))
+	 (known (get-known-cells cells))
+	 (invalid (get-invalid cells)))
+    (let ((path (build-path (car (car known)) (cadr (car known)) invalid (cdr known))))
+      (let ((result path))
+	(let ((largest (car (car (sort (lambda (a b) (> (car a) (car b))) result)))))
+	  (show-board (sort (lambda (a b) (coord< (cdr a) (cdr b))) result)
+		      largest
+		      file))))))
+
+(define (main)
+  (let ((file (cadr (command-line))))
+    (display "Input: ")
+    (newline)
+    (map (lambda (ln)
+	   (display ln)
+	   (newline))
+	 (parse-file file))
+    (newline)
+    (display "Output: ")
+    (newline)
+    (run file)
+    (newline)))
+
+(main)
+
