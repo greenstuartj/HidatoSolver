@@ -1,5 +1,5 @@
 # HidatoSolver
-A Simple Sovler for Hidato Puzzles
+A Simple Sovler for [Hidato puzzles](https://en.wikipedia.org/wiki/Hidato)
 
 Written in [Gambit Scheme](https://en.wikipedia.org/wiki/Gambit_(Scheme_implementation))
 
@@ -11,5 +11,3 @@ depending on the compiler path
 
 Run:
 `./hidato example/example1.txt`
-
-Solver for [Hidato puzzles](https://en.wikipedia.org/wiki/Hidato)
