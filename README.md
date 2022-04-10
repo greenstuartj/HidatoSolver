@@ -10,4 +10,4 @@ or
 depending on the compiler path
 
 Run:
-`./hidato example/example1.txt`
+`./hidato examples/example1.txt`
